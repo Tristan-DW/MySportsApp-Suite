@@ -9,22 +9,57 @@ spl_autoload_register(function (string $class): void {
     $prefix  = 'MySportsApp\\';
     $baseDir = dirname(__DIR__) . '/src/';
 
+    // Debug information to help diagnose the issue
+    error_log("Autoloader: Looking for class {$class}");
+    error_log("Autoloader: Base directory is {$baseDir}");
+
     $len = strlen($prefix);
     if (strncmp($prefix, $class, $len) !== 0) {
         // Not our namespace.
+        error_log("Autoloader: Class {$class} is not in our namespace");
         return;
     }
 
     $relative = substr($class, $len); // e.g. "Controllers\AuthController"
     $file = $baseDir . str_replace('\\', '/', $relative) . '.php'; // src/Controllers/AuthController.php
-
-    if (is_file($file)) {
+    
+    error_log("Autoloader: Looking for file {$file}");
+    
+    // Check if the file exists
+    if (file_exists($file)) {
+        error_log("Autoloader: File {$file} exists, requiring it");
         require $file;
+    } else {
+        error_log("Autoloader: File {$file} does not exist");
+        
+        // Try an alternative path (assuming src directory might be at a different location)
+        $altBaseDir = '/var/www/html/src/';
+        $altFile = $altBaseDir . str_replace('\\', '/', $relative) . '.php';
+        error_log("Autoloader: Trying alternative path {$altFile}");
+        
+        if (file_exists($altFile)) {
+            error_log("Autoloader: Alternative file {$altFile} exists, requiring it");
+            require $altFile;
+        } else {
+            error_log("Autoloader: Alternative file {$altFile} does not exist");
+        }
     }
 });
 
 // Bootstrap (config, DB, session helpers, require_login, etc.)
-require_once dirname(__DIR__) . '/src/bootstrap.php';
+// Try to load bootstrap.php from the expected location
+$bootstrapFile = dirname(__DIR__) . '/src/bootstrap.php';
+if (file_exists($bootstrapFile)) {
+    require_once $bootstrapFile;
+} else {
+    // Try an alternative path if the primary path fails
+    $altBootstrapFile = '/var/www/html/src/bootstrap.php';
+    if (file_exists($altBootstrapFile)) {
+        require_once $altBootstrapFile;
+    } else {
+        die('Fatal error: Could not find bootstrap.php file');
+    }
+}
 
 use MySportsApp\Controllers\AuthController;
 use MySportsApp\Controllers\DashboardController;

@@ -80,6 +80,8 @@ You can log in at `/index.php?route=login`.
 
 ## Running with Docker (VPS, e.g. Hostinger)
 
+### Option 1: Manual Deployment
+
 1. Copy this repo to your VPS (git clone or upload).
 2. From the project root:
 
@@ -96,6 +98,49 @@ docker-compose up -d
    - Public endpoints (no login required):
      - `?route=faq` – FAQ / KB public view.
      - `?route=ticket_public` – ticket submission form.
+
+### Option 2: Automated Deployment from GitHub URL
+
+#### For Linux VPS (e.g., Hostinger)
+
+1. Download the deployment script to your VPS:
+
+```bash
+curl -O https://raw.githubusercontent.com/yourusername/MySportsApp-Suite/main/deploy.sh
+chmod +x deploy.sh
+```
+
+2. Run the script with your GitHub repository URL:
+
+```bash
+sudo ./deploy.sh "https://github.com/yourusername/MySportsApp-Suite.git" "main"
+```
+
+The script will:
+- Install Docker and Docker Compose if they're not already installed
+- Clone the repository from the provided GitHub URL
+- Build and start the Docker containers
+- Display the URL and login credentials
+
+#### For Windows Development Environment
+
+1. Download the PowerShell deployment script:
+
+```powershell
+Invoke-WebRequest -Uri "https://raw.githubusercontent.com/yourusername/MySportsApp-Suite/main/deploy.ps1" -OutFile "deploy.ps1"
+```
+
+2. Run the script with your GitHub repository URL:
+
+```powershell
+.\deploy.ps1 -GitHubUrl "https://github.com/yourusername/MySportsApp-Suite.git" -Branch "main"
+```
+
+The script will:
+- Check if Docker Desktop is installed and running
+- Clone the repository from the provided GitHub URL
+- Build and start the Docker containers
+- Display the URL and login credentials
 
 ---
 

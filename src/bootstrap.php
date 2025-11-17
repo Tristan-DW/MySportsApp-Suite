@@ -5,13 +5,49 @@ session_start();
 
 define('BASE_PATH', dirname(__DIR__));
 
-require_once BASE_PATH . '/src/Services/DatabaseManager.php';
-require_once BASE_PATH . '/src/Services/AnalyticsService.php';
-require_once BASE_PATH . '/src/Services/PaystackClient.php';
-require_once BASE_PATH . '/src/Services/PaystackSyncService.php';
-require_once BASE_PATH . '/src/Services/XeroService.php';
+// Function to safely require a file with fallback to absolute path
+function safe_require_once($relativePath) {
+    $file = BASE_PATH . $relativePath;
+    if (file_exists($file)) {
+        require_once $file;
+    } else {
+        // Try absolute path as fallback
+        $absolutePath = '/var/www/html' . $relativePath;
+        if (file_exists($absolutePath)) {
+            require_once $absolutePath;
+        } else {
+            error_log("Could not find file: {$relativePath}");
+            die("Fatal error: Could not find required file: {$relativePath}");
+        }
+    }
+}
 
-$appConfig = require BASE_PATH . '/config/app.php';
+// Function to safely require a configuration file with fallback to absolute path
+function safe_require_config($relativePath) {
+    $file = BASE_PATH . $relativePath;
+    if (file_exists($file)) {
+        return require $file;
+    } else {
+        // Try absolute path as fallback
+        $absolutePath = '/var/www/html' . $relativePath;
+        if (file_exists($absolutePath)) {
+            return require $absolutePath;
+        } else {
+            error_log("Could not find config file: {$relativePath}");
+            die("Fatal error: Could not find required config file: {$relativePath}");
+        }
+    }
+}
+
+// Require service files with fallback
+safe_require_once('/src/Services/DatabaseManager.php');
+safe_require_once('/src/Services/AnalyticsService.php');
+safe_require_once('/src/Services/PaystackClient.php');
+safe_require_once('/src/Services/PaystackSyncService.php');
+safe_require_once('/src/Services/XeroService.php');
+
+// Load configuration with fallback
+$appConfig = safe_require_config('/config/app.php');
 
 use MySportsApp\Services\DatabaseManager;
 use MySportsApp\Services\AnalyticsService;
@@ -84,11 +120,24 @@ function require_role(array $roles): void {
 
 function render(string $view, array $data = []): void {
     extract($data);
+    
+    // Try to find the view file using BASE_PATH
     $viewFile = BASE_PATH . '/views/' . $view . '.php';
-    if (!is_file($viewFile)) {
-        http_response_code(500);
-        echo "View not found: " . htmlspecialchars($view);
-        exit;
+    
+    // If the file doesn't exist at the expected location, try an alternative path
+    if (!file_exists($viewFile)) {
+        $altViewFile = '/var/www/html/views/' . $view . '.php';
+        
+        if (file_exists($altViewFile)) {
+            $viewFile = $altViewFile;
+        } else {
+            error_log("View not found: {$view}");
+            error_log("Tried paths: {$viewFile} and {$altViewFile}");
+            http_response_code(500);
+            echo "View not found: " . htmlspecialchars($view);
+            exit;
+        }
     }
+    
     include $viewFile;
 }

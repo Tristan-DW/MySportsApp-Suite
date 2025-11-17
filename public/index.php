@@ -3,7 +3,7 @@ declare(strict_types=1);
 
 /**
  * Minimal PSR-4 autoloader for the MySportsApp namespace.
- * This MUST run before we require bootstrap or use any controllers/services.
+ * This MUST run before bootstrap so bootstrap can also use namespaced classes.
  */
 spl_autoload_register(function (string $class): void {
     $prefix  = 'MySportsApp\\';
@@ -11,7 +11,7 @@ spl_autoload_register(function (string $class): void {
 
     $len = strlen($prefix);
     if (strncmp($prefix, $class, $len) !== 0) {
-        // Not our namespace, skip.
+        // Not our namespace.
         return;
     }
 
@@ -23,7 +23,7 @@ spl_autoload_register(function (string $class): void {
     }
 });
 
-// Bootstrap (config, DB, session helpers, etc.)
+// Bootstrap (config, DB, session helpers, require_login, etc.)
 require_once dirname(__DIR__) . '/src/bootstrap.php';
 
 use MySportsApp\Controllers\AuthController;
@@ -35,31 +35,37 @@ use MySportsApp\Controllers\AdminController;
 
 $route = $_GET['route'] ?? null;
 
-// Public routes
+// ------- Public routes (no login required) -------
+
 if ($route === 'login') {
     (new AuthController())->showLogin();
     exit;
 }
+
 if ($route === 'login_submit' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     (new AuthController())->loginSubmit();
     exit;
 }
+
 if ($route === 'faq') {
     (new KnowledgeController())->publicFaq();
     exit;
 }
+
 if ($route === 'ticket_public') {
     (new TicketController())->publicForm();
     exit;
 }
 
-// Auth-only routes
+// ------- Auth-only routes -------
+
 if ($route === 'logout' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     (new AuthController())->logout();
     exit;
 }
 
-require_login(); // from bootstrap.php – enforces session + role
+// Everything below this point requires a logged-in user
+require_login();
 
 switch ($route) {
     case null:

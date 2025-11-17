@@ -218,6 +218,62 @@ This automatic initialization process means you don't need to manually run any s
 
 The application won't start until the database is properly initialized, preventing errors like `Table 'mysportsapp_suite.users' doesn't exist`.
 
+### Troubleshooting Deployment Issues
+
+If you encounter issues during deployment, here are some common problems and solutions:
+
+#### Container Health Check Failures
+
+If you see an error like `dependency failed to start: container mysportsapp_php_app is unhealthy`, it means the application container failed its health check. This could be due to:
+
+1. **Database initialization taking too long**: The application container might be trying to connect to the database before it's fully initialized.
+   - Solution: The system is designed to wait for the database to be ready, but in some environments (especially with limited resources), it might need more time.
+   - Check the logs of the app container for more details: `docker logs mysportsapp_php_app`
+
+2. **Missing or corrupted schema file**: If the schema.sql file is missing or corrupted, the database tables won't be created properly.
+   - Solution: Verify that the schema.sql file exists in the database directory and has the correct content.
+
+3. **Network issues between containers**: In some environments, there might be network issues preventing the app container from connecting to the database.
+   - Solution: Check that the containers can communicate with each other. The app container should be able to reach the database container at the hostname `db`.
+
+#### Viewing Detailed Logs
+
+For more detailed troubleshooting, you can view the logs of each container:
+
+```bash
+# View logs of the database container
+docker logs mysportsapp_php_db
+
+# View logs of the application container
+docker logs mysportsapp_php_app
+
+# View logs of the web server container
+docker logs mysportsapp_php_web
+```
+
+The application and database initialization scripts include detailed logging to help diagnose issues. Look for error messages or warnings in these logs.
+
+#### Manual Database Reset
+
+If you need to reset the database completely:
+
+1. Stop the containers:
+   ```bash
+   docker-compose down
+   ```
+
+2. Remove the database volume:
+   ```bash
+   docker volume rm mysportsapp-suite_mysportsapp_php_db_data
+   ```
+
+3. Start the containers again:
+   ```bash
+   docker-compose up -d
+   ```
+
+This will recreate the database from scratch, applying the schema.sql file to create all tables and the default admin user.
+
 ---
 
 ## Security Notes

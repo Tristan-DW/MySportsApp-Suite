@@ -20,8 +20,8 @@ services:
       test: ["CMD", "php", "-r", "if(file_exists('/var/www/html/docker/healthcheck.php')) { include '/var/www/html/docker/healthcheck.php'; } else { exit(0); }"]
       interval: 10s
       timeout: 5s
-      retries: 3
-      start_period: 30s
+      retries: 5
+      start_period: 60s
 
   web:
     build:

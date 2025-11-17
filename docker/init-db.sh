@@ -1,46 +1,119 @@
 #!/bin/bash
 set -e
 
+# Function to log messages with timestamp
+log_message() {
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] $1"
+}
+
+log_message "Starting database initialization script"
+log_message "Environment variables: MYSQL_DATABASE=${MYSQL_DATABASE:-not set}"
+log_message "Environment variables: MYSQL_USER=${MYSQL_USER:-not set}"
+log_message "Environment variables: MYSQL_PASSWORD=${MYSQL_PASSWORD:+is set}"
+
+# Check if schema.sql exists
+if [ ! -f /var/www/html/database/schema.sql ]; then
+    log_message "ERROR: schema.sql file not found at /var/www/html/database/schema.sql"
+    ls -la /var/www/html/database/
+    exit 1
+fi
+
 # Wait for MySQL to be ready
-echo "Waiting for MySQL to be ready..."
-max_attempts=30
+log_message "Waiting for MySQL to be ready..."
+max_attempts=45  # Increased from 30 to 45 (90 seconds total)
 attempt=0
 while ! mysql -h db -u"$MYSQL_USER" -p"$MYSQL_PASSWORD" -e "SELECT 1" >/dev/null 2>&1; do
     attempt=$((attempt+1))
     if [ $attempt -gt $max_attempts ]; then
-        echo "Error: MySQL did not become ready in time"
+        log_message "ERROR: MySQL did not become ready in time after $max_attempts attempts"
         exit 1
     fi
-    echo "MySQL not ready yet. Waiting..."
+    log_message "MySQL not ready yet. Waiting... (Attempt $attempt/$max_attempts)"
     sleep 2
 done
-echo "MySQL is ready!"
+log_message "MySQL is ready!"
+
+# Check if the database exists
+log_message "Checking if database exists..."
+if ! mysql -h db -u"$MYSQL_USER" -p"$MYSQL_PASSWORD" -e "USE $MYSQL_DATABASE" >/dev/null 2>&1; then
+    log_message "Database does not exist. Creating database $MYSQL_DATABASE..."
+    mysql -h db -u"$MYSQL_USER" -p"$MYSQL_PASSWORD" -e "CREATE DATABASE IF NOT EXISTS $MYSQL_DATABASE"
+    log_message "Database created successfully!"
+fi
 
 # Check if the users table exists
-echo "Checking if database schema is initialized..."
+log_message "Checking if database schema is initialized..."
 if ! mysql -h db -u"$MYSQL_USER" -p"$MYSQL_PASSWORD" "$MYSQL_DATABASE" -e "DESCRIBE users" >/dev/null 2>&1; then
-    echo "Database schema not initialized. Applying schema.sql..."
-    mysql -h db -u"$MYSQL_USER" -p"$MYSQL_PASSWORD" "$MYSQL_DATABASE" < /var/www/html/database/schema.sql
-    echo "Schema applied successfully!"
+    log_message "Database schema not initialized. Applying schema.sql..."
+    
+    # Apply schema with error handling
+    if mysql -h db -u"$MYSQL_USER" -p"$MYSQL_PASSWORD" "$MYSQL_DATABASE" < /var/www/html/database/schema.sql; then
+        log_message "Schema applied successfully!"
+    else
+        log_message "ERROR: Failed to apply schema.sql"
+        exit 1
+    fi
 else
-    echo "Database schema already initialized."
+    log_message "Database schema already initialized."
 fi
 
 # Verify all required tables exist
+log_message "Verifying all required tables exist..."
 required_tables=("users" "analytics_sources" "knowledge_articles" "tickets" "ticket_notes" "settings" "paystack_settlements" "paystack_transactions" "xero_connections")
 missing_tables=()
 
 for table in "${required_tables[@]}"; do
+    log_message "Checking table: $table"
     if ! mysql -h db -u"$MYSQL_USER" -p"$MYSQL_PASSWORD" "$MYSQL_DATABASE" -e "DESCRIBE $table" >/dev/null 2>&1; then
         missing_tables+=("$table")
+        log_message "Table $table is missing"
     fi
 done
 
 if [ ${#missing_tables[@]} -gt 0 ]; then
-    echo "Warning: The following tables are missing: ${missing_tables[*]}"
-    echo "Applying schema.sql to create missing tables..."
-    mysql -h db -u"$MYSQL_USER" -p"$MYSQL_PASSWORD" "$MYSQL_DATABASE" < /var/www/html/database/schema.sql
-    echo "Schema applied successfully!"
+    log_message "Warning: The following tables are missing: ${missing_tables[*]}"
+    log_message "Applying schema.sql to create missing tables..."
+    
+    # Apply schema with error handling
+    if mysql -h db -u"$MYSQL_USER" -p"$MYSQL_PASSWORD" "$MYSQL_DATABASE" < /var/www/html/database/schema.sql; then
+        log_message "Schema applied successfully!"
+        
+        # Verify tables were created
+        still_missing=()
+        for table in "${missing_tables[@]}"; do
+            if ! mysql -h db -u"$MYSQL_USER" -p"$MYSQL_PASSWORD" "$MYSQL_DATABASE" -e "DESCRIBE $table" >/dev/null 2>&1; then
+                still_missing+=("$table")
+            fi
+        done
+        
+        if [ ${#still_missing[@]} -gt 0 ]; then
+            log_message "ERROR: The following tables are still missing after applying schema.sql: ${still_missing[*]}"
+            log_message "This may indicate an issue with the schema.sql file"
+            # Continue anyway, as the health check will catch this
+        fi
+    else
+        log_message "ERROR: Failed to apply schema.sql"
+        exit 1
+    fi
 fi
 
-echo "Database initialization complete!"
+# Verify users table has at least one record
+log_message "Verifying users table has data..."
+user_count=$(mysql -h db -u"$MYSQL_USER" -p"$MYSQL_PASSWORD" -N -e "SELECT COUNT(*) FROM $MYSQL_DATABASE.users" 2>/dev/null || echo "0")
+log_message "Users table has $user_count records"
+
+if [ "$user_count" -lt 1 ]; then
+    log_message "Warning: Users table is empty. Applying schema.sql to create default user..."
+    mysql -h db -u"$MYSQL_USER" -p"$MYSQL_PASSWORD" "$MYSQL_DATABASE" < /var/www/html/database/schema.sql
+    
+    # Verify user was created
+    user_count=$(mysql -h db -u"$MYSQL_USER" -p"$MYSQL_PASSWORD" -N -e "SELECT COUNT(*) FROM $MYSQL_DATABASE.users" 2>/dev/null || echo "0")
+    if [ "$user_count" -lt 1 ]; then
+        log_message "ERROR: Failed to create default user"
+        # Continue anyway, as the health check will catch this
+    else
+        log_message "Default user created successfully!"
+    fi
+fi
+
+log_message "Database initialization complete!"

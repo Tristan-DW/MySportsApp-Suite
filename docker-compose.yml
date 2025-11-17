@@ -8,7 +8,7 @@ services:
     container_name: mysportsapp_php_app
     restart: unless-stopped
     working_dir: /var/www/html
-    # IMPORTANT: no volumes here; code is baked into the image
+    # ⛔ NO volumes here
     depends_on:
       - db
 
@@ -20,7 +20,7 @@ services:
     restart: unless-stopped
     ports:
       - "80:80"
-    # IMPORTANT: no volumes here either
+    # ⛔ NO volumes here either
     depends_on:
       - app
 

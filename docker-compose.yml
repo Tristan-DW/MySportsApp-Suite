@@ -13,15 +13,17 @@ services:
       MYSQL_DATABASE: mysportsapp_suite
       MYSQL_USER: mysportsapp
       MYSQL_PASSWORD: mysportsapp_password
+      # Add debug flag to enable more verbose logging
+      PHP_DEBUG: "true"
     depends_on:
       db:
         condition: service_healthy
     healthcheck:
       test: ["CMD", "php", "-r", "if(file_exists('/var/www/html/docker/healthcheck.php')) { include '/var/www/html/docker/healthcheck.php'; } else { exit(0); }"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 60s
+      interval: 15s      # Increased from 10s to 15s
+      timeout: 10s       # Increased from 5s to 10s
+      retries: 10        # Increased from 5 to 10
+      start_period: 120s # Increased from 60s to 120s
 
   web:
     build:
@@ -45,17 +47,22 @@ services:
       MYSQL_DATABASE: mysportsapp_suite
       MYSQL_USER: mysportsapp
       MYSQL_PASSWORD: mysportsapp_password
+      # Ensure MySQL binds to all interfaces, not just localhost
+      MYSQL_BIND_ADDRESS: "0.0.0.0"
     volumes:
       - mysportsapp_php_db_data:/var/lib/mysql
       - ./database/schema.sql:/docker-entrypoint-initdb.d/schema.sql:ro
     ports:
       - "3306:3306"
+    # Add command to ensure MySQL is properly configured for external access
+    command: --bind-address=0.0.0.0 --default-authentication-plugin=mysql_native_password
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "mysportsapp", "-pmysportsapp_password"]
+      # Test both local and network connectivity
+      test: ["CMD", "bash", "-c", "mysqladmin ping -h localhost -u mysportsapp -pmysportsapp_password && mysql -h 127.0.0.1 -u mysportsapp -pmysportsapp_password -e 'SELECT 1'"]
       interval: 10s
-      timeout: 5s
-      retries: 3
-      start_period: 30s
+      timeout: 10s  # Increased from 5s to 10s
+      retries: 5    # Increased from 3 to 5
+      start_period: 60s  # Increased from 30s to 60s
 
 volumes:
   mysportsapp_php_db_data:

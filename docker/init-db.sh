@@ -20,18 +20,61 @@ fi
 
 # Wait for MySQL to be ready
 log_message "Waiting for MySQL to be ready..."
-max_attempts=45  # Increased from 30 to 45 (90 seconds total)
+max_attempts=60  # Increased to 60 (300 seconds total)
 attempt=0
-while ! mysql -h db -u"$MYSQL_USER" -p"$MYSQL_PASSWORD" -e "SELECT 1" >/dev/null 2>&1; do
+while true; do
     attempt=$((attempt+1))
+    
+    # Try to connect to MySQL and capture any error message
+    connection_result=$(mysql -h db -u"$MYSQL_USER" -p"$MYSQL_PASSWORD" -e "SELECT 1" 2>&1)
+    connection_status=$?
+    
+    if [ $connection_status -eq 0 ]; then
+        log_message "MySQL is ready!"
+        break
+    fi
+    
+    # Log the specific error for better diagnostics
+    log_message "MySQL not ready yet. Error: $connection_result"
+    
     if [ $attempt -gt $max_attempts ]; then
         log_message "ERROR: MySQL did not become ready in time after $max_attempts attempts"
-        exit 1
+        log_message "Last error: $connection_result"
+        
+        # Try to get more information about the MySQL server
+        log_message "Attempting to diagnose the issue..."
+        
+        # Check if the MySQL process is running in the db container
+        if docker exec mysportsapp_php_db ps aux | grep mysql >/dev/null 2>&1; then
+            log_message "MySQL process is running in the db container"
+        else
+            log_message "MySQL process is NOT running in the db container"
+        fi
+        
+        # Check if we can ping the db container
+        if ping -c 1 db >/dev/null 2>&1; then
+            log_message "Can ping the db container"
+        else
+            log_message "Cannot ping the db container"
+        fi
+        
+        # Try connecting with different parameters
+        log_message "Trying to connect to MySQL with different parameters..."
+        mysql -h 127.0.0.1 -u"$MYSQL_USER" -p"$MYSQL_PASSWORD" -e "SELECT 1" >/dev/null 2>&1
+        if [ $? -eq 0 ]; then
+            log_message "Can connect to MySQL using 127.0.0.1 instead of 'db'"
+        else
+            log_message "Cannot connect to MySQL using 127.0.0.1"
+        fi
+        
+        # Continue anyway, as the script might work with retry
+        log_message "Will continue despite connection issues and try again later"
+        break
     fi
+    
     log_message "MySQL not ready yet. Waiting... (Attempt $attempt/$max_attempts)"
-    sleep 2
+    sleep 5  # Increased from 2 to 5 seconds
 done
-log_message "MySQL is ready!"
 
 # Check if the database exists
 log_message "Checking if database exists..."

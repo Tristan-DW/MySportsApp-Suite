@@ -1,6 +1,29 @@
 <?php
 declare(strict_types=1);
 
+/**
+ * Minimal PSR-4 autoloader for the MySportsApp namespace.
+ * This MUST run before we require bootstrap or use any controllers/services.
+ */
+spl_autoload_register(function (string $class): void {
+    $prefix  = 'MySportsApp\\';
+    $baseDir = dirname(__DIR__) . '/src/';
+
+    $len = strlen($prefix);
+    if (strncmp($prefix, $class, $len) !== 0) {
+        // Not our namespace, skip.
+        return;
+    }
+
+    $relative = substr($class, $len); // e.g. "Controllers\AuthController"
+    $file = $baseDir . str_replace('\\', '/', $relative) . '.php'; // src/Controllers/AuthController.php
+
+    if (is_file($file)) {
+        require $file;
+    }
+});
+
+// Bootstrap (config, DB, session helpers, etc.)
 require_once dirname(__DIR__) . '/src/bootstrap.php';
 
 use MySportsApp\Controllers\AuthController;
@@ -36,10 +59,11 @@ if ($route === 'logout' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     exit;
 }
 
+require_login(); // from bootstrap.php – enforces session + role
+
 switch ($route) {
     case null:
     case 'dashboard':
-        require_login();
         (new DashboardController())->index();
         break;
 

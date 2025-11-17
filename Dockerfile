@@ -1,22 +1,17 @@
-FROM php:8.2-fpm
+FROM php:8.2-fpm-alpine
 
-RUN apt-get update && apt-get install -y \
-    git \
-    curl \
-    libpng-dev \
-    libonig-dev \
-    libxml2-dev \
-    zip \
-    unzip \
+# Install PHP extensions we need
+RUN apk add --no-cache \
+    bash \
+    icu-dev \
     libzip-dev \
-    && docker-php-ext-install pdo_mysql mbstring exif pcntl bcmath gd zip \
-    && rm -rf /var/lib/apt/lists/*
+    oniguruma-dev \
+    curl \
+ && docker-php-ext-install pdo pdo_mysql intl mbstring zip
 
 WORKDIR /var/www/html
 
+# Copy the full repo into the image
 COPY . /var/www/html
 
-RUN chown -R www-data:www-data /var/www/html
-
-EXPOSE 9000
-CMD ["php-fpm"]
+# You can add custom php.ini etc here if needed

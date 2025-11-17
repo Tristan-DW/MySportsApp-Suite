@@ -198,6 +198,28 @@ setup. You get:
 
 ---
 
+## Database Initialization
+
+The application includes a robust database initialization system that ensures the database is properly set up on startup:
+
+1. When the containers start, the database service initializes first
+2. The application container waits for the database to be ready before starting
+3. On startup, the application automatically:
+   - Checks if the database is accessible
+   - Verifies that all required tables exist
+   - Creates any missing tables using the schema.sql file
+   - Ensures the default admin user is created
+
+This automatic initialization process means you don't need to manually run any scripts or commands to set up the database. The system will handle everything for you, even if:
+
+- This is the first time you're running the application
+- The database volume was deleted or corrupted
+- Some tables are missing due to partial initialization
+
+The application won't start until the database is properly initialized, preventing errors like `Table 'mysportsapp_suite.users' doesn't exist`.
+
+---
+
 ## Security Notes
 
 This is a **starter** and needs hardening before production:

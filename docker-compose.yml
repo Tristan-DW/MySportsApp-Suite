@@ -9,8 +9,19 @@ services:
     restart: unless-stopped
     working_dir: /var/www/html
     # ⛔ NO volumes here
+    environment:
+      MYSQL_DATABASE: mysportsapp_suite
+      MYSQL_USER: mysportsapp
+      MYSQL_PASSWORD: mysportsapp_password
     depends_on:
-      - db
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "php", "-r", "if(file_exists('/var/www/html/docker/healthcheck.php')) { include '/var/www/html/docker/healthcheck.php'; } else { exit(0); }"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
 
   web:
     build:
@@ -22,7 +33,8 @@ services:
       - "80:80"
     # ⛔ NO volumes here either
     depends_on:
-      - app
+      app:
+        condition: service_healthy
 
   db:
     image: mysql:8.0
@@ -38,6 +50,12 @@ services:
       - ./database/schema.sql:/docker-entrypoint-initdb.d/schema.sql:ro
     ports:
       - "3306:3306"
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "mysportsapp", "-pmysportsapp_password"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
 
 volumes:
   mysportsapp_php_db_data:
